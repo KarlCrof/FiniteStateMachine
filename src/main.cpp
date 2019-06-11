@@ -331,7 +331,6 @@ const uint8_t winscreen_img[] PROGMEM = {
 	0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00
 };
 
-
 //game difficulty parameters
 const uint8_t NUMCARS = 2; //number of cars to win the game
 const uint8_t DELAYSTEP = 2; //number of cars before delay decrements
@@ -345,7 +344,6 @@ const uint8_t CARMOVE_DECR = 25;
 const uint8_t ROAD_W = 88; //road width, closest to viewer
 const uint8_t ROAD_H = 30; //2d height of road
 const uint8_t ROAD_DEL = 30; //for parallax, degree of road lines converging
-
 const uint8_t ROAD_CEN = display.width()/2; //centre point of road
 const uint8_t ROAD_L_EDGE = ROAD_CEN - ROAD_W /2; //left edge, closest to viewer
 const uint8_t ROAD_R_EDGE = ROAD_CEN + ROAD_W /2;
@@ -362,7 +360,7 @@ State current_state = S_Start;
 uint32_t gameStartTime_ms = 0;
 uint32_t gameTime_ms = 0;
 float potAvg = 0; float potOld = 0;
-bool canLoad = false;
+bool canLoad = false; //can progress past loading screen
 
 //global variables for buttons
 uint8_t startButtonPin = 11;
@@ -806,7 +804,7 @@ void ISR_Pause(){
 //consideration of variable screen sizes -> distances relative to edge, proportional to total dimension
 
 
-/** DRAWING FUNCTIONS *****/
+/** EXAMPLE DRAWING FUNCTIONS *****/
 /*
 void testdrawline() {
   int16_t i;
@@ -1054,6 +1052,7 @@ void testdrawbitmap(void) {
 }
 */
 
+//draw snowflakes - modified
 void testanimate(const uint8_t *bitmap, uint8_t w, uint8_t h) {
   static int8_t f, icons[NUMFLAKES][3];
   // Initialize 'snowflake' positions
@@ -1114,7 +1113,6 @@ Can buffer multiple drawn objects */
   /*display.invertDisplay(true);
   delay(1000);
   display.invertDisplay(false);
-  delay(1000); 
-  */
+  delay(1000); */
 
   //testanimate(logo_bmp, LOGO_WIDTH, LOGO_HEIGHT); // Animate bitmaps
