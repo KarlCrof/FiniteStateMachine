@@ -3,8 +3,10 @@
 PROJ REQ and yeah
 
 # CIRCUIT SCHEMATIC
+<img src="https://i.ibb.co/GR4jYhZ/schematic.jpg" alt="schematic" border="0">
 
-I2C PULLUP RESISTORS ON SDA, SCL (as bits are active low, pulling the line down). THESE ARE INTERNALLY CONNECTED.
+I2C PULLUP RESISTORS ON SDA, SCL (as bits are active low, pulling the line down). THESE ARE INTERNALLY CONNECTED ON SSD1306.  
+BUTTON - INTERNAL PULLUP.  
 
 # STATE MACHINE DESIGN
 <img src="https://i.ibb.co/5ncZTbp/statemachine.jpg" alt="statemachine" border="0">
