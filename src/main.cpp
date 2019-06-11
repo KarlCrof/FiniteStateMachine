@@ -260,6 +260,8 @@ enum State {S_Start, S_Load, S_Running, S_Paused, S_Winning, S_Gameover};
 State current_state = S_Start;
 uint32_t gameStartTime_ms = 0;
 uint32_t gameTime_ms = 0;
+float potAvg = 0; float potOld = 0;
+bool canLoad = false;
 
 //global variables for buttons
 uint8_t startButtonPin = 11;
@@ -412,17 +414,25 @@ void displayStartScreen(bool startscreenstate){
   }
   display.display();
 }
-void displayLoadScreen(){
+bool displayLoadScreen(){
   display.clearDisplay();
   display.setTextSize(1);                 
   display.setCursor(0,0);             
   display.println(F("Please calibrate steering wheel"));
   uint32_t potValue = analogRead(A0); //read potentiometer value
-  uint32_t posValue = map(potValue,1,1023,ROAD_L_EDGE, ROAD_R_EDGE); //map to car centre position
+  potAvg = 0.1*potValue + 0.9*potOld;
+  potOld = potAvg;
+  uint32_t posValue = map(potAvg,1,1023,ROAD_L_EDGE, ROAD_R_EDGE); //map to car centre position
   display.drawFastVLine(posValue,32,5,WHITE);
   display.drawFastVLine(ROAD_L_EDGE,32,5,WHITE);
   display.drawFastVLine(ROAD_R_EDGE,32,5,WHITE);
   display.display();
+  //return to 'canLoad' boolean
+  if(collisionDetectionRoad(posValue)){
+    return false;
+  }else{
+    return true;
+  }
 }
 
 void displayPause(){
@@ -470,9 +480,7 @@ void displayCarsRemaining(uint8_t num, uint8_t count){
 }
 
 gameReturn runGame(){
-
-  //v determines length of game and difficulty
-  static uint8_t numCars = 10; static uint8_t delayStep = 2;
+  static uint8_t numCars = 10; static uint8_t delayStep = 2;  //< determines length of game and difficulty
 
   static uint8_t car_prox = 0; //increases as cars move toward screen
   static uint32_t lastCar_ms = 0;
@@ -494,7 +502,9 @@ gameReturn runGame(){
   }
   //calculate position of user's car
   uint32_t potValue = analogRead(A0); //read potentiometer value
-  uint32_t posValue = map(potValue,1,1023,ROAD_L_EDGE, ROAD_R_EDGE); //map to car centre position
+  potAvg = 0.1*potValue + 0.9*potOld; //implement rolling average
+  potOld = potAvg;
+  uint32_t posValue = map(potAvg,1,1023,ROAD_L_EDGE, ROAD_R_EDGE); //map to car centre position
   
   display.clearDisplay();
   drawRoad(medianState);
@@ -591,11 +601,14 @@ void loop() {
 
     case S_Load:
       //load screen to calibrate steering wheel (potentiometer)
-      displayLoadScreen();
-      if (start_pressed){
+      canLoad = displayLoadScreen();
+      //prevent proceeding if would result in crash
+      if (start_pressed and canLoad){
         current_state = S_Running;
         gameStartTime_ms = millis(); //time when start button was pressed
         gameTime_ms = 0; //reset game time
+        start_pressed = 0;
+      } else{
         start_pressed = 0;
       }
       break;
@@ -642,7 +655,7 @@ void loop() {
     case S_Gameover:
       //display "boom" text if crash
       //alternating gameover screen
-      if ((millis() - gameovertime_ms) < 2000){
+      if ((millis() - gameovertime_ms) < 1500){
         displayBOOM();
       }else{
         displaygameover(endscreenstate);
