@@ -34,7 +34,7 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 #define NUMFLAKES     20
 #define LOGO_HEIGHT   16
 #define LOGO_WIDTH    16
-#define XPOS   0 // 'icons' array index (snowflake position variables)
+#define XPOS   0 // 'icons' array index (snowflake x,y,dy position variables)
 #define YPOS   1
 #define DELTAY 2
 const unsigned char PROGMEM logo_bmp[] = { 
@@ -55,7 +55,7 @@ const unsigned char PROGMEM logo_bmp[] = {
   B01110000, B01110000,
   B00000000, B00110000 
 };
-bool snowflakeinit = false;
+bool snowflakeinit = false; //initialize snowflake positions once per gameover screen
 
 //function prototypes
 void ISR_Start();
@@ -65,7 +65,7 @@ void testanimate(const uint8_t *bitmap, uint8_t w, uint8_t h);
 //game screen bitmaps
 const uint8_t car_img[] PROGMEM = {
   0x0F, 0xF0, 0x10, 0x08, 0xEF, 0xF7, 0x28, 0x14, 0x40, 0x02, 0x44, 0x22, 0x7F, 0xFE, 0x60, 0x06
-};
+}; //16x8 pixels
 const uint8_t startscreen_img[] PROGMEM = {
 	0xFF, 0xFF, 0x80, 0x00, 0x1F, 0xFF, 0xF8, 0x00, 0x01, 0xFF, 0xFF, 0xC0, 0x00, 0x1F, 0xFF, 0xFC,
 	0xFF, 0xFF, 0x80, 0x00, 0x1F, 0xFF, 0xF8, 0x00, 0x01, 0xFF, 0xFF, 0xC0, 0x00, 0x1F, 0xFF, 0xFC,
@@ -131,7 +131,7 @@ const uint8_t startscreen_img[] PROGMEM = {
 	0x00, 0x00, 0xE0, 0x00, 0x00, 0x00, 0x00, 0x1F, 0xE1, 0xC0, 0x00, 0x00, 0x00, 0x60, 0x00, 0x00,
 	0x00, 0x00, 0x3C, 0x00, 0x00, 0x00, 0x01, 0xF8, 0x19, 0x80, 0x00, 0x00, 0x01, 0xC0, 0x00, 0x00,
 	0x00, 0x00, 0x07, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x0F, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00
-};
+}; //128x64 pixels
 const uint8_t gameoverscreen_img[] PROGMEM ={
 	0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
 	0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
@@ -332,54 +332,58 @@ const uint8_t winscreen_img[] PROGMEM = {
 };
 
 //game difficulty parameters
-const uint8_t NUMCARS = 2; //number of cars to win the game
+//**note: move delay <30, feels like significant increase in speed
+const uint8_t NUMCARS = 8; //number of cars to win the game
 const uint8_t DELAYSTEP = 2; //number of cars before delay decrements
 const uint16_t CAR_LAUNCHDELAYMAX_MS = 2000; //starting / reset delay values
 const uint8_t CAR_MOVEDELAYMAX_MS = 100;
-const uint8_t CARLAUNCH_DECR = 250; //decrement amounts
+const uint8_t CARLAUNCH_DECR = 250; //decrement amounts per iteration
 const uint8_t CARMOVE_DECR = 25;
-//note: <30 move delay significant jump in difficulty
 
 //global variables for game
-const uint8_t ROAD_W = 88; //road width, closest to viewer
+const uint8_t ROAD_W = 88; //(bottom of) road width
 const uint8_t ROAD_H = 30; //2d height of road
-const uint8_t ROAD_DEL = 30; //for parallax, degree of road lines converging
+const uint8_t ROAD_DEL = 30; //pixel convergence of road lines (parallax)
 const uint8_t ROAD_CEN = display.width()/2; //centre point of road
-const uint8_t ROAD_L_EDGE = ROAD_CEN - ROAD_W /2; //left edge, closest to viewer
+const uint8_t ROAD_L_EDGE = ROAD_CEN - ROAD_W /2; //bottom left point of road
 const uint8_t ROAD_R_EDGE = ROAD_CEN + ROAD_W /2;
 const uint8_t ROAD_Y = display.height() - ROAD_H; //y pixel position of road line = 34
 
-const uint8_t CAR_H = 8;
+const uint8_t CAR_H = 8; //car dimensions
 const uint8_t CAR_W = 16;
-const uint8_t CAR_Y = 55;
+const uint8_t CAR_Y = 55; //car is fixed vertically, can only move horizontally
 
-enum sideOfRoad {left_side, down_centre, right_side, both_sides, left_cen, right_cen}; //type definitions: add left_cen, right_cen
-enum gameReturn {none, collision, win};
-enum State {S_Start, S_Load, S_Running, S_Paused, S_Winning, S_Gameover};
-State current_state = S_Start;
-uint32_t gameStartTime_ms = 0;
-uint32_t gameTime_ms = 0;
-float potAvg = 0; float potOld = 0;
-bool canLoad = false; //can progress past loading screen
+enum sideOfRoad {left_side, down_centre, right_side, both_sides, left_cen, right_cen}; //sides of the road for oncoming cars
+enum gameReturn {none, collision, win}; //game return variable (for state transition from 'running')
+enum State {S_Start, S_Load, S_Running, S_Paused, S_Winning, S_Gameover}; //FSM states
+State current_state = S_Start; //state machine initialization
+uint32_t gameStartTime_ms = 0; //time 'game running' started
+uint32_t gameTime_ms = 0; //time 'game running' elapsed
+float potAvg = 0; float potOld = 0; //averaging potentiometer value to mitigate noise
+bool canLoad = false; //can progress past loading screen flag
 
 //global variables for buttons
-uint8_t startButtonPin = 11;
+uint8_t startButtonPin = 11; //digital Teensy pin
 uint8_t pauseButtonPin = 12;
 const uint8_t DEBOUNCE_DELAY_MS = 200;
-volatile bool start_pressed = 0;
+volatile bool start_pressed = 0; //flags for 'button has been pressed'
 volatile bool pause_pressed = 0;
 
 //CAR FUNCTIONS
+/* return a random 'sideOfRoad' (for the approaching cars) */
 sideOfRoad getRandomSide(){
   sideOfRoad values[6] = {left_side, down_centre, right_side, both_sides, left_cen, right_cen};
   uint8_t r = (uint8_t)random(0,6);
-  return values[r];
+  return values[r]; 
 }
+
+/* draw road edges and median strip */
 void drawRoad(uint8_t med){
-  display.drawLine(ROAD_L_EDGE+ROAD_DEL, ROAD_Y, ROAD_L_EDGE, ROAD_Y+ROAD_H, WHITE); // draw road edges
+  display.drawLine(ROAD_L_EDGE+ROAD_DEL, ROAD_Y, ROAD_L_EDGE, ROAD_Y+ROAD_H, WHITE); 
   display.drawLine(ROAD_R_EDGE-ROAD_DEL, ROAD_Y, ROAD_R_EDGE, ROAD_Y+ROAD_H, WHITE);
-  //alternate median strip lines
-  //for loop used as initially much smaller spacing (i increment)
+  
+  //alternate median strip lines (depending on 'medianState')
+  //for loop used as initially much smaller spacing (the i increment)
   if (med==0){
     for (uint8_t i = 0; i<ROAD_H; i=i+20){
     display.drawFastVLine(ROAD_CEN, ROAD_Y+i, 5, WHITE);}
@@ -397,54 +401,60 @@ void drawRoad(uint8_t med){
     display.drawFastVLine(ROAD_CEN, ROAD_Y+i, 5, WHITE);}
   }
 }
-void drawCar(int cen){
-  //display.drawRect(cen-(CAR_W/2), CAR_Y, CAR_W, CAR_H, WHITE); //draw car from top L corner position
+
+/* draws player's car*/
+void drawCar(int cen){ 
+  //note: need to offset car centre by car width/height, as draws from top left corner
+  //display.drawRect(cen-(CAR_W/2), CAR_Y, CAR_W, CAR_H, WHITE);
   display.drawBitmap(cen-(CAR_W/2), CAR_Y, car_img, CAR_W, CAR_H, WHITE);
 }
+
+/* detects collision between player car and road edges */
 bool collisionDetectionRoad(uint8_t car_cen){
-  //update to include collision detection w cars at proximity 30
-  if ((car_cen - CAR_W/2)< ROAD_L_EDGE){
+  if ((car_cen - CAR_W/2)< ROAD_L_EDGE){ //if player car's left side < road left edge
     return true;
   }
-  else if ((car_cen + CAR_W/2)>ROAD_R_EDGE){
+  else if ((car_cen + CAR_W/2)>ROAD_R_EDGE){ //if player car's right side > road right edge
     return true;
   }
   else {
     return false;
   }
 }
+
+/* detect collision between player's car and approaching cars within collision proximity */
 bool collisionDetectionCar (uint8_t car_cen, sideOfRoad side){
   switch(side){
-    case left_side: 
+    case left_side: //collision if player car's left side < left car's right
       if((car_cen - CAR_W/2) < (ROAD_CEN - ROAD_W/4 + CAR_W/2)){return true;}
       else {return false;}
 
-    case right_side:
+    case right_side: //collision if players car's right side > right car's left
       if((car_cen + CAR_W/2) > (ROAD_CEN + ROAD_W/4 - CAR_W/2)){return true;}
       else {return false;}
 
-    case both_sides:
-      if((car_cen - CAR_W/2) < (ROAD_CEN - ROAD_W/4 + CAR_W/2)){return true;} //collide with left car
-      else if((car_cen + CAR_W/2) > (ROAD_CEN + ROAD_W/4 - CAR_W/2)){return true;} //collide with right car
+    case both_sides: //check player within central area (right edge of left, left edge of right car)
+      if((car_cen - CAR_W/2) < (ROAD_CEN - ROAD_W/4 + CAR_W/2)){return true;}
+      else if((car_cen + CAR_W/2) > (ROAD_CEN + ROAD_W/4 - CAR_W/2)){return true;}
       else {return false;}
 
-    case down_centre:
+    case down_centre: //check player car clears centre car from either road side
       if((car_cen < ROAD_CEN) and ((car_cen + CAR_W/2) > (ROAD_CEN - CAR_W/2))){return true;}
       if((car_cen > ROAD_CEN) and ((car_cen - CAR_W/2) < (ROAD_CEN + CAR_W/2))){return true;}
-      //on left side of road, right edge of car > left edge of centre car
-      //on right side of road, left edge of car < right edge of centre car
       else {return false;}
     
-    case left_cen:
-      if((car_cen - CAR_W/2) < ROAD_CEN + CAR_W/2) {return true;} //left edge of car < right edge of centre car
+    case left_cen: //player car's left edge must be right of centre car's right
+      if((car_cen - CAR_W/2) < ROAD_CEN + CAR_W/2) {return true;}
       else {return false;}
 
-    case right_cen:
-      if ((car_cen + CAR_W/2) > ROAD_CEN - CAR_W/2) {return true;} //right edge of car > left edge of centre car
+    case right_cen: //player car's right edge must be left of centre car's left
+      if ((car_cen + CAR_W/2) > ROAD_CEN - CAR_W/2) {return true;}
       else {return false;}
   }
   return false;
 }
+
+/* draw approaching cars */
 void carApproaching(int car_prox, sideOfRoad side){
   //car gets bigger during vertical travel (x/30)
   float car_scaling = (float)car_prox / (float)ROAD_H; 
@@ -670,10 +680,10 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(startButtonPin), ISR_Start, FALLING);
   attachInterrupt(digitalPinToInterrupt(pauseButtonPin), ISR_Pause, FALLING);
 
-  display.setTextColor(WHITE);  //as constant
+  display.setTextColor(WHITE);  //initial color
   display.display(); //initial buffer = Adafruit splash screen
-  display.clearDisplay();   // Clear the buffer
-  delay(1000);
+  display.clearDisplay(); // Clear the buffer
+  while (millis()<1000){} //delay to show Adafruit screen
 }
 
 void loop() {
@@ -682,6 +692,7 @@ void loop() {
   switch (current_state){
 
     case S_Start:
+      //could add: startup animation
       //start screen alternates displaying "press start" text
       displayStartScreen(startscreenstate);
       if ((millis() - startscreentime_ms) > 1000){
@@ -712,9 +723,6 @@ void loop() {
     case S_Running:
       //could have "startofGame()" = countdown + driving past chequered start line
       //run game until win or gameover
-      if (start_pressed){
-        start_pressed = 0; //prevents skipping gameover / win screen
-      }
       if (pause_pressed){
         current_state = S_Paused; //pauses game
         pause_pressed = 0;
@@ -722,9 +730,13 @@ void loop() {
           gameReturn g = runGame();
           if (g == collision){
             current_state = S_Gameover;
+            start_pressed = 0;
             gameovertime_ms = millis();
           }
-          else if(g == win){current_state = S_Winning;}
+          else if(g == win){
+            current_state = S_Winning;
+            start_pressed = 0;
+            }
       }
       break;
 
@@ -803,255 +815,6 @@ void ISR_Pause(){
 
 //consideration of variable screen sizes -> distances relative to edge, proportional to total dimension
 
-
-/** EXAMPLE DRAWING FUNCTIONS *****/
-/*
-void testdrawline() {
-  int16_t i;
-
-  display.clearDisplay(); // Clear display buffer
-
-  for(i=0; i<display.width(); i+=4) {
-    display.drawLine(0, 0, i, display.height()-1, WHITE);
-    display.display(); // Update screen with each newly-drawn line
-    delay(1);
-  }
-  for(i=0; i<display.height(); i+=4) {
-    display.drawLine(0, 0, display.width()-1, i, WHITE);
-    display.display();
-    delay(1);
-  }
-  delay(250);
-
-  display.clearDisplay();
-
-  for(i=0; i<display.width(); i+=4) {
-    display.drawLine(0, display.height()-1, i, 0, WHITE);
-    display.display();
-    delay(1);
-  }
-  for(i=display.height()-1; i>=0; i-=4) {
-    display.drawLine(0, display.height()-1, display.width()-1, i, WHITE);
-    display.display();
-    delay(1);
-  }
-  delay(250);
-
-  display.clearDisplay();
-
-  for(i=display.width()-1; i>=0; i-=4) {
-    display.drawLine(display.width()-1, display.height()-1, i, 0, WHITE);
-    display.display();
-    delay(1);
-  }
-  for(i=display.height()-1; i>=0; i-=4) {
-    display.drawLine(display.width()-1, display.height()-1, 0, i, WHITE);
-    display.display();
-    delay(1);
-  }
-  delay(250);
-
-  display.clearDisplay();
-
-  for(i=0; i<display.height(); i+=4) {
-    display.drawLine(display.width()-1, 0, 0, i, WHITE);
-    display.display();
-    delay(1);
-  }
-  for(i=0; i<display.width(); i+=4) {
-    display.drawLine(display.width()-1, 0, i, display.height()-1, WHITE);
-    display.display();
-    delay(1);
-  }
-
-  delay(2000); // Pause for 2 seconds
-}
-
-void testdrawrect(void) {
-  display.clearDisplay();
-
-  for(int16_t i=0; i<display.height()/2; i+=2) {
-    display.drawRect(i, i, display.width()-2*i, display.height()-2*i, WHITE);
-    display.display(); // Update screen with each newly-drawn rectangle
-    delay(1);
-  }
-
-  delay(2000);
-}
-
-void testfillrect(void) {
-  display.clearDisplay();
-
-  for(int16_t i=0; i<display.height()/2; i+=3) {
-    // The INVERSE color is used so rectangles alternate white/black
-    display.fillRect(i, i, display.width()-i*2, display.height()-i*2, INVERSE);
-    display.display(); // Update screen with each newly-drawn rectangle
-    delay(1);
-  }
-
-  delay(2000);
-}
-
-void testdrawcircle(void) {
-  display.clearDisplay();
-
-  for(int16_t i=0; i<max(display.width(),display.height())/2; i+=2) {
-    display.drawCircle(display.width()/2, display.height()/2, i, WHITE);
-    display.display();
-    delay(1);
-  }
-
-  delay(2000);
-}
-
-void testfillcircle(void) {
-  display.clearDisplay();
-
-  for(int16_t i=max(display.width(),display.height())/2; i>0; i-=3) {
-    // The INVERSE color is used so circles alternate white/black
-    display.fillCircle(display.width() / 2, display.height() / 2, i, INVERSE);
-    display.display(); // Update screen with each newly-drawn circle
-    delay(1);
-  }
-
-  delay(2000);
-}
-
-void testdrawroundrect(void) {
-  display.clearDisplay();
-
-  for(int16_t i=0; i<display.height()/2-2; i+=2) {
-    display.drawRoundRect(i, i, display.width()-2*i, display.height()-2*i,
-      display.height()/4, WHITE);
-    display.display();
-    delay(1);
-  }
-
-  delay(2000);
-}
-
-void testfillroundrect(void) {
-  display.clearDisplay();
-
-  for(int16_t i=0; i<display.height()/2-2; i+=2) {
-    // The INVERSE color is used so round-rects alternate white/black
-    display.fillRoundRect(i, i, display.width()-2*i, display.height()-2*i,
-      display.height()/4, INVERSE);
-    display.display();
-    delay(1);
-  }
-
-  delay(2000);
-}
-
-void testdrawtriangle(void) {
-  display.clearDisplay();
-
-  for(int16_t i=0; i<max(display.width(),display.height())/2; i+=5) {
-    display.drawTriangle(
-      display.width()/2  , display.height()/2-i,
-      display.width()/2-i, display.height()/2+i,
-      display.width()/2+i, display.height()/2+i, WHITE);
-    display.display();
-    delay(1);
-  }
-
-  delay(2000);
-}
-
-void testfilltriangle(void) {
-  display.clearDisplay();
-
-  for(int16_t i=max(display.width(),display.height())/2; i>0; i-=5) {
-    // The INVERSE color is used so triangles alternate white/black
-    display.fillTriangle(
-      display.width()/2  , display.height()/2-i,
-      display.width()/2-i, display.height()/2+i,
-      display.width()/2+i, display.height()/2+i, INVERSE);
-    display.display();
-    delay(1);
-  }
-
-  delay(2000);
-}
-
-void testdrawchar(void) {
-  display.clearDisplay();
-
-  display.setTextSize(1);      // Normal 1:1 pixel scale
-  display.setTextColor(WHITE); // Draw white text
-  display.setCursor(0, 0);     // Start at top-left corner
-  display.cp437(true);         // Use full 256 char 'Code Page 437' font
-
-  // Not all the characters will fit on the display. This is normal.
-  // Library will draw what it can and the rest will be clipped.
-  for(int16_t i=0; i<256; i++) {
-    if(i == '\n') display.write(' ');
-    else          display.write(i);
-  }
-
-  display.display();
-  delay(2000);
-}
-
-void testdrawstyles(void) {
-  display.clearDisplay();
-
-  display.setTextSize(1);             // Normal 1:1 pixel scale
-  display.setTextColor(WHITE);        // Draw white text
-  display.setCursor(0,0);             // Start at top-left corner
-  display.println(F("Hello, world!"));
-
-  display.setTextColor(BLACK, WHITE); // Draw 'inverse' text
-  display.println(3.141592);
-
-  display.setTextSize(2);             // Draw 2X-scale text
-  display.setTextColor(WHITE);
-  display.print(F("0x")); display.println(0xDEADBEEF, HEX);
-
-  display.display();
-  delay(2000);
-}
-
-void testscrolltext(void) {
-  display.clearDisplay();
-
-  display.setTextSize(2); // Draw 2X-scale text
-  display.setTextColor(WHITE);
-  display.setCursor(10, 0);
-  display.println(F("scroll"));
-  display.display();      // Show initial text
-  delay(100);
-
-  // Scroll in various directions, pausing in-between:
-  display.startscrollright(0x00, 0x0F);
-  delay(2000);
-  display.stopscroll();
-  delay(1000);
-  display.startscrollleft(0x00, 0x0F);
-  delay(2000);
-  display.stopscroll();
-  delay(1000);
-  display.startscrolldiagright(0x00, 0x07);
-  delay(2000);
-  display.startscrolldiagleft(0x00, 0x07);
-  delay(2000);
-  display.stopscroll();
-  delay(1000);
-}
-
-void testdrawbitmap(void) {
-  display.clearDisplay();
-
-  display.drawBitmap(
-    (display.width()  - LOGO_WIDTH ) / 2,
-    (display.height() - LOGO_HEIGHT) / 2,
-    logo_bmp, LOGO_WIDTH, LOGO_HEIGHT, 1);
-  display.display();
-  delay(1000);
-}
-*/
-
 //draw snowflakes - modified
 void testanimate(const uint8_t *bitmap, uint8_t w, uint8_t h) {
   static int8_t f, icons[NUMFLAKES][3];
@@ -1087,32 +850,3 @@ void testanimate(const uint8_t *bitmap, uint8_t w, uint8_t h) {
     }
   }
 }
-
-
-/** EXAMPLE FUNCTION CALLS****/
-/*Call display() to display on screen
-Can buffer multiple drawn objects */
-
-  //Example draw commands:
-  //display.drawPixel(10, 10, WHITE);     // Draw a single pixel in white
-  //testdrawline();      // Draw many lines
-  //testdrawrect();      // Draw rectangles (outlines)
-  //testfillrect();      // Draw rectangles (filled)
-  //testdrawcircle();    // Draw circles (outlines)
-  //testfillcircle();    // Draw circles (filled)
-  //testdrawroundrect(); // Draw rounded rectangles (outlines)
-  //testfillroundrect(); // Draw rounded rectangles (filled)
-  //testdrawtriangle();  // Draw triangles (outlines)
-  //testfilltriangle();  // Draw triangles (filled)
-  //testdrawchar();      // Draw characters of the default font
-  //testdrawstyles();    // Draw 'stylized' characters
-  //testscrolltext();    // Draw scrolling text
-  //testdrawbitmap();    // Draw a small bitmap image
-
-  // Invert and restore display, pausing in-between
-  /*display.invertDisplay(true);
-  delay(1000);
-  display.invertDisplay(false);
-  delay(1000); */
-
-  //testanimate(logo_bmp, LOGO_WIDTH, LOGO_HEIGHT); // Animate bitmaps
