@@ -456,13 +456,13 @@ bool collisionDetectionCar (uint8_t car_cen, sideOfRoad side){
 
 /* draw approaching cars */
 void carApproaching(int car_prox, sideOfRoad side){
-  //car gets bigger during vertical travel (x/30)
+  //car gets bigger during vertical travel (x/30), x=0..30
   float car_scaling = (float)car_prox / (float)ROAD_H; 
   float car_scaling_size = min(car_scaling*10, 1.0);
 
   // int car_scaling_pos_right = map(car_prox,0,ROAD_H,ROAD_CEN + 0.5*ROAD_W - 0.75*ROAD_DEL, ROAD_CEN + 0.25*ROAD_W);
-  // int car_scaling_pos_right = ROAD_CEN + 7 + car_prox/2 [i.e +7 to +22] <- line of road
-  int car_scaling_pos_right = map(car_prox,0,ROAD_H,ROAD_CEN+10, ROAD_CEN+25); //is hard coded
+  // int car_scaling_pos_right = ROAD_CEN + 7 + car_prox/2 [i.e +7 to +22] <- 1/4line of road
+  int car_scaling_pos_right = map(car_prox,0,ROAD_H,ROAD_CEN+10, ROAD_CEN+25); //hard coded to visually be centred
   int car_scaling_pos_left = map(car_prox,0,ROAD_H,ROAD_CEN-10, ROAD_CEN-25);
 
   switch (side){
@@ -502,14 +502,17 @@ void carApproaching(int car_prox, sideOfRoad side){
       display.drawBitmap(ROAD_CEN-(CAR_W/2*car_scaling_size), ROAD_Y+car_prox, car_img, CAR_W*car_scaling_size, CAR_H*car_scaling_size, WHITE);
       break;
 
-    //case car changing lanes? -> fixed final position to check for collision
+    //case: car changing lanes? -> fixed final position to check for collision
+    //note: size scaling changes bitmap frame size, instead of actually changing proportions
+    //may need custom images for 'appearing' sequence
   }  
 }
 
 //DISPLAY FUNCTIONS
+/* draw start screen with alternating "start" text */
 void displayStartScreen(bool startscreenstate){
   display.clearDisplay();
-  if (startscreenstate){
+  if (startscreenstate){ //startscreenstate is a flag that gets toggled in the state machine
     display.drawBitmap(0,0,startscreen_img,display.width(),display.height(),WHITE);
     display.setTextSize(1);                 
     display.setCursor(32,30);
@@ -520,38 +523,42 @@ void displayStartScreen(bool startscreenstate){
   }
   display.display();
 }
+/* draw load screen - prompting player to calibrate potentiometer */
 bool displayLoadScreen(){
   display.clearDisplay();
   display.setTextSize(1);                 
   display.setCursor(0,0);             
   display.println(F("Please calibrate steering wheel"));
   uint32_t potValue = analogRead(A0); //read potentiometer value
-  potAvg = 0.1*potValue + 0.9*potOld;
+  potAvg = 0.1*potValue + 0.9*potOld; //update current average value (for noise mitigation)
   potOld = potAvg;
   uint32_t posValue = map(potAvg,1,1023,ROAD_L_EDGE, ROAD_R_EDGE); //map to car centre position
   display.drawFastVLine(posValue,32,5,WHITE);
   display.drawFastVLine(ROAD_L_EDGE,32,5,WHITE);
   display.drawFastVLine(ROAD_R_EDGE,32,5,WHITE);
   display.display();
-  //return to 'canLoad' boolean
+  //return to 'canLoad' whether the game should be able to start (won't result in instant crash)
   if(collisionDetectionRoad(posValue)){
     return false;
   }else{
     return true;
   }
 }
+/* display "pause" text on screen */
 void displayPause(){
   display.setTextSize(2);                  
   display.setCursor(28,10);             
   display.println(F("PAUSED"));
   display.display();
 }
+/* display 'you crashed' text to indicate a collision has occured */
 void displayBOOM(){
   display.setTextSize(2);                  
   display.setCursor(0,0);             
   display.println(F("*^KABOOMv#"));
   display.display();
 }
+/* draw gameover screen and re-start prompt */
 void displaygameover(bool endscreenstate){
   display.clearDisplay();
   if(endscreenstate){
@@ -567,6 +574,7 @@ void displaygameover(bool endscreenstate){
   display.println(F("again."));
   display.display();
 }
+/* draw game win screen */
 void displayWOO(){
   display.clearDisplay();
   display.drawBitmap(0,0,winscreen_img,display.width(),display.height(),WHITE);
@@ -577,6 +585,7 @@ void displayWOO(){
   testanimate(logo_bmp, LOGO_WIDTH, LOGO_HEIGHT);
   display.display();
 }
+/* display in game text indicating game progression */
 void displayCarsRemaining(uint8_t num, uint8_t count){
   display.setTextSize(1);               
   display.setCursor(0,0);             
@@ -584,19 +593,22 @@ void displayCarsRemaining(uint8_t num, uint8_t count){
   display.print(num - count);
 }
 
-//THE GAME
+/* THE GAME runs until it returns 'win' or 'collision' */
 gameReturn runGame(){
+  //note: one shared variable for car position 'carProx' = only one 'car' on screen at a time
+  //object oriented implementation (each car has its own 'distance away') better if multiple concurrent cars are needed
+
   static uint16_t carLaunchDelay_ms = CAR_LAUNCHDELAYMAX_MS; //<- minimum time before next car launches (decreases)
   static uint8_t carMoveDelay_ms = CAR_MOVEDELAYMAX_MS; //<-- delay affects speed of car (decreases)
 
   static uint8_t car_prox = 0; //increases as cars move toward screen 0->30 (road_h)
-  static uint32_t lastCar_ms = 0;
-  static uint32_t lastCarMove_ms = 0;
-  static bool launchCar = false;
+  static uint32_t lastCar_ms = 0; //the last time a car was launched
+  static uint32_t lastCarMove_ms = 0; //the last time the car on screen moved
+  static bool launchCar = false; //flag for if a car is on the road
   static sideOfRoad nextCarSide = getRandomSide();
-  static uint8_t car_count = 0;
+  static uint8_t car_count = 0; //numbers of sets of cars passed
 
-  static uint8_t medianState = 0;
+  static uint8_t medianState = 0; //to alternate median strip
   static uint32_t lastMedianChange_ms = 0;
 
   //reset game variables for re-start of game
@@ -612,10 +624,12 @@ gameReturn runGame(){
   uint32_t posValue = map(potAvg,1,1023,ROAD_L_EDGE, ROAD_R_EDGE); //map to car centre position
   
   display.clearDisplay();
+
+  //draw the road lines and the player's car
   drawRoad(medianState);
   drawCar(posValue);
 
-  //determine if median strip needs to be alternated
+  //determine if median strip needs to be alternated (every 250ms)
   if ((gameTime_ms - lastMedianChange_ms) > 250){
     lastMedianChange_ms = gameTime_ms;
     if(medianState==0){medianState=1;}
@@ -625,11 +639,12 @@ gameReturn runGame(){
   }
   
   //launch a car depending if carLaunchDelay_ms threshold reached
+  //when carLaunchDelay_ms < 'time to move across screen' -> immediately launches once the previous car is 'done'
   if ((gameTime_ms - lastCar_ms) > carLaunchDelay_ms){
     lastCar_ms = gameTime_ms;
     launchCar = true;
   }
-  //draw the approaching cars, incrementing downwards depending on carMoveDelay_ms
+  //draw the approaching cars, moving downwards depending on carMoveDelay_ms time
   if (launchCar){
       carApproaching(car_prox,nextCarSide); //car approaching of distance away, and position designator
       if (millis() - lastCarMove_ms > carMoveDelay_ms){ //carMoveDelay determines speed of car approach 50 -> 0.
@@ -638,12 +653,13 @@ gameReturn runGame(){
       } 
       //when car reaches end of road...    
       if(car_prox > ROAD_H){
-        car_prox = 0; //reset car distance
+        car_prox = 0; //reset car distance variable
         launchCar = false; //car no longer on road
         car_count++; //increment cars passed
         nextCarSide = getRandomSide(); //for next car
 
-        //win if count > threshold. alternatively, game time could correspond to distance travelled.
+        //win if count > threshold. 
+        //alternatively, game time could correspond to distance travelled.
         if (car_count == NUMCARS){ return win;}
 
         //decrease car delays evey delayStep # cars
@@ -659,10 +675,11 @@ gameReturn runGame(){
   if((car_prox > ROAD_H-10) and (car_prox < ROAD_H-5) and (collisionDetectionCar(posValue,nextCarSide))){
     return collision;
   }
+  //display game progress text
   displayCarsRemaining(NUMCARS, car_count);
-  display.display(); //display buffer contents to screen
+  display.display(); //write buffer contents to screen
   gameTime_ms = millis() - gameStartTime_ms; //update game timer
-  return none; //= game continues
+  return none; //'none' return = game continues
 }
 
 //MAIN- STATE MACHINE
@@ -675,6 +692,7 @@ void setup() {
     Serial.println(F("SSD1306 allocation failed"));
     for(;;); // Don't proceed, loop forever
   }
+  //initializing button digital pins with interrupts attached
   pinMode(startButtonPin, INPUT_PULLUP);
   pinMode(pauseButtonPin, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(startButtonPin), ISR_Start, FALLING);
@@ -687,27 +705,30 @@ void setup() {
 }
 
 void loop() {
+  //'time when this screen occured' variables
   static uint32_t startscreentime_ms = 0;  static uint32_t gameovertime_ms = 0;  static uint32_t endscreentime_ms = 0;
   static bool startscreenstate = 0;  static bool endscreenstate = 0;
   switch (current_state){
 
     case S_Start:
       //could add: startup animation
-      //start screen alternates displaying "press start" text
+      //action: start screen alternates displaying "press start" text, every 1s
       displayStartScreen(startscreenstate);
       if ((millis() - startscreentime_ms) > 1000){
         startscreentime_ms = millis();
         startscreenstate = !startscreenstate;
       }
+      //transition checks - 'start' proceeds to next screen
       if (start_pressed){
         current_state = S_Load;
-        start_pressed = 0;
+        start_pressed = 0; //reset on transition - as next screen checks for this
       }
       break;
 
     case S_Load:
       //load screen to calibrate steering wheel (potentiometer)
       //displayLoadScreen() returns false if would result in crash (with road edge) on game start
+      //proceed if 'start' and no collision would occur
       canLoad = displayLoadScreen();
       if (start_pressed and canLoad){
         current_state = S_Running;
@@ -784,10 +805,12 @@ void loop() {
 }
 
 void ISR_Start(){
+  //debounce delay - ignore all negative edges for a period of time (200ms)
+  //after the first, actual press, has been detected
   static uint32_t laststartpress_ms = 0;
   if ((millis() - laststartpress_ms) > DEBOUNCE_DELAY_MS){
     laststartpress_ms = millis();
-    start_pressed = 1;
+    start_pressed = 1; //set flag indicating the button has been pressed
   }
 }
 void ISR_Pause(){
@@ -831,7 +854,7 @@ void testanimate(const uint8_t *bitmap, uint8_t w, uint8_t h) {
       //Serial.print(F(" dy: "));
       //Serial.println(icons[f][DELTAY], DEC);
     }
-    snowflakeinit = 1;
+    snowflakeinit = true;
   }
 
   // Draw each snowflake:
