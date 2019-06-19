@@ -5,8 +5,17 @@
 # CIRCUIT SCHEMATIC
 <img src="https://i.ibb.co/GR4jYhZ/schematic.jpg" alt="schematic" border="0">
 
-I2C PULLUP RESISTORS ON SDA, SCL (as bits are active low, pulling the line down). THESE ARE INTERNALLY CONNECTED ON SSD1306.  
-BUTTON - INTERNAL PULLUP.  
+* The SSD1306 display has 4 lines which need to be connected (Vcc and GND being two of them).
+* The I<sup>2</sup>C SDA (serial data) line is connected to the analog pin 4 on the Teensy microcontroller.
+* The I<sup>2</sup>C SCL (serial clock) line is connected to analog pin 5.
+* __Note:__ Both of these lines require a pull-up resistor attached to them (to +Vcc, due to the open-drain MOSFET interface of I<sup>2</sup>C, which pulls the voltage of the line down to 0V when the gate is activated). These are internally connected / included the SSD1306 IC, hence were not included on the schematic.
+
+<img src="http://rheingoldheavy.com/wp-content/uploads/2015/01/I2C_Pull_Up_Example.png">
+
+* A potentiometer is connected to analog pin 0 (as an input). The variable resistance provides a voltage between 0 and +3.3V on the line, which will be used to control the horizontal position of the car (as a mapped value).
+
+* Two buttons are connected to digital 
+
 
 # STATE MACHINE DESIGN
 <img src="https://i.ibb.co/5ncZTbp/statemachine.jpg" alt="statemachine" border="0">
@@ -46,6 +55,9 @@ Note: As the start and pause button 'pressed flag' latches on when the correspon
 
 # VERIFICATION
 * video of states
+
+# DISCUSSION
+* improvements
 
 # IMAGES AND REFERENCES
 <img src="https://i.ibb.co/V2H6Txn/lcdassistant.jpg" alt="lcdassistant" border="0"> 
