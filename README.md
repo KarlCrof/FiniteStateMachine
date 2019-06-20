@@ -53,6 +53,11 @@ Note: As the start and pause button 'pressed flag' latches on when the correspon
 * EXPLAIN RUNGAME
 * EXPLAIN STATEMACHINE
 
+# PROJECT VIDEO
+<a href="http://www.youtube.com/watch?feature=player_embedded&v=MCOlxTB5z3w
+" target="_blank"><img src="http://img.youtube.com/vi/MCOlxTB5z3w/0.jpg" 
+alt="IMAGE ALT TEXT HERE" width="240" height="180" border="10" /></a>
+
 # VERIFICATION
 <img src="https://i.ibb.co/vhTfM8h/states.jpg" alt="states" border="0">
 
