@@ -54,7 +54,9 @@ Note: As the start and pause button 'pressed flag' latches on when the correspon
 * EXPLAIN STATEMACHINE
 
 # VERIFICATION
-* video of states
+<img src="https://i.ibb.co/vhTfM8h/states.jpg" alt="states" border="0">
+
+The above image shows all possible states of the game can be reached. Transitions between the states were as expected when using the start/pause push buttons, as according to the state transition diagram.
 
 # DISCUSSION
 * improvements
