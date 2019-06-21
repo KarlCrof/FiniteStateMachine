@@ -2,19 +2,23 @@
 
 # PROJECT REQUIREMENTS
 
+lalalalalalalalalalalalalalala
+
 # CIRCUIT SCHEMATIC
 <img src="https://i.ibb.co/GR4jYhZ/schematic.jpg" alt="schematic" border="0">
+
+Above is the circuit schematic for the microcontroller, display and peripherals.
 
 * The SSD1306 display has 4 lines which need to be connected (Vcc and GND being two of them).
 * The I<sup>2</sup>C SDA (serial data) line is connected to the analog pin 4 on the Teensy microcontroller.
 * The I<sup>2</sup>C SCL (serial clock) line is connected to analog pin 5.
-* __Note:__ Both of these lines require a pull-up resistor attached to them (to +Vcc, due to the open-drain MOSFET interface of I<sup>2</sup>C, which pulls the voltage of the line down to 0V when the gate is activated). These are internally connected / included the SSD1306 IC, hence were not included on the schematic.
+* __Note:__ Both of these lines require a pull-up resistor attached to them (to +Vcc). Data transmission pulls the voltage of the line down to 0V due to the open-drain MOSFET interface of I<sup>2</sup>C (shown below). These are internally connected / included the SSD1306 IC, hence were not pictured on the schematic.
 
-<img src="http://rheingoldheavy.com/wp-content/uploads/2015/01/I2C_Pull_Up_Example.png">
+<img src="http://rheingoldheavy.com/wp-content/uploads/2015/01/I2C_Pull_Up_Example.png"> need ref!
 
-* A potentiometer is connected to analog pin 0 (as an input). The variable resistance provides a voltage between 0 and +3.3V on the line, which will be used to control the horizontal position of the car (as a mapped value).
+* A potentiometer is connected to analog pin 0 (as an input). The variable resistance provides a voltage between 0 and Vcc (+3.3V) on the input, which will be read and used to control the horizontal position of the car (as a mapped value).
 
-* Two buttons are connected to digital 
+* Two buttons are connected to interrupt capable digital pins (also inputs). These will be the 'start' and 'pause' buttons to progress through the game states. When a button is pressed, a connection to ground is formed and the interrupt service routine will be called on the detected negative voltage edge. These inputs will be configured to have internal pullup resistors connected to them, so that the voltage on the line is not floating (and can return to +Vcc) when the button is not pressed (also not pictured).
 
 
 # STATE MACHINE DESIGN
@@ -47,6 +51,11 @@ Note: As the start and pause button 'pressed flag' latches on when the correspon
 # PHYSICAL CIRCUIT
 <img src="https://i.ibb.co/nPXnSB2/breadboardcircuit.jpg" alt="breadboardcircuit" border="0">
 
+Above is the breadboard implementation of the circuit.  
+
+The left button is 'pause' and the right button is the 'start' button.
+
+The relevant pins used on the Teensy microcontroller are annotated as above.
 
 # CODE IMPLEMENTATION
 
@@ -58,13 +67,26 @@ Note: As the start and pause button 'pressed flag' latches on when the correspon
 " target="_blank"><img src="http://img.youtube.com/vi/MCOlxTB5z3w/0.jpg" 
 alt="IMAGE ALT TEXT HERE" width="240" height="180" border="10" /></a>
 
+Above is a supplementary video showing the game running and explaining the source code.
+
 # VERIFICATION
 <img src="https://i.ibb.co/vhTfM8h/states.jpg" alt="states" border="0">
 
 The above image shows all possible states of the game can be reached. Transitions between the states were as expected when using the start/pause push buttons, as according to the state transition diagram.
 
 # DISCUSSION
-* improvements
+
+* Control of the player's car is quite rudimentary. The player, via turning the potentiometer, controls the final position of the car. An extension for the game would be having the potentiometer represent 'turn left' and 'turn right' (from the centre point), as opposed to directly mapping to discrete positions. The degree of the turn would correlate to the acceleration in that direction. This would add complexity because the player would then need to gauge the degree of turning required in order to follow the bend of the road or avoid obstacles (and yet, not have an unrecoverable amount of momentum from 'over-turning').
+* An XY axis joystick could be utilised instead of the potentiometer to control the player car's movement. An advantage the joystick has over the potentiometer is that it physically resets to a centred neutral position when not in use (via a spring mechanism). This would eliminate the need for the 'loading screen' state. The degree of the (horizontal) turn could either map to a continuous acceleration scale or be separated into discrete threshold breakpoints where the acceleration amount increases. 
+* Movement in the Y axis could correlate either to a limited vertical degree of freedom (can move up and down the screen), or alternatively, correlate to the player car's speed. Accelerating and braking in this way would make the elements on the screen appear to travel faster or slower accordingly. This could be conveyed on the screen by a 'km/h' meter or by increasing the rate at which a distance meter increases/decreases.
+* The current win condition of passing a certain amount of cars is binary in that the player either wins or loses. There is no 'degree of winning'. The objective of the game would preferably be either: travel the furthest distance within a set time, or travel a target distance in the fastest time. Both of the win conditions naturally lead to having 'high-scores'. These could be saved to the microcontroller's non-volatile memory and could be displayed in another potential game state.
+
+* Road bends
+* Multiple cars on screen
+* Phantom racing.
+* Game state machine
+* Introductory animations
+* Start menu. highscores
 
 # IMAGES AND REFERENCES
 <img src="https://i.ibb.co/V2H6Txn/lcdassistant.jpg" alt="lcdassistant" border="0"> 
