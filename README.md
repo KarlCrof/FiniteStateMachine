@@ -1,10 +1,30 @@
 # FiniteStateMachine
 
-# PROJECT REQUIREMENTS
+Project by Karl Crofskey, 2183664.  
+For MG7013 Embedded Systems.  
 
-lalalalalalalalalalalalalalala
+# Project Requirements-
 
-# CIRCUIT SCHEMATIC
+The purpose of this project is create a finite state machine in the form of a simple game. Here the specific game screens (minimum: a start screen, the actual game, a pause screen and an end screen) represent the states of the state machine, and transitions occur when button presses are detected or internal conditions are met.
+
+The game and relevant screens will be displayed on an 'Adafruit SSD1306' 128x64 pixel OLED display. This communicates with a Teensy microcontroller via the I<sup>2</sup>C communication protocol.
+
+A player score should be displayed, and the game should increase in difficulty as the game runs.
+
+Pressing the button(s) should trigger an external interrupt, and they should be debounced in order to prevent multiple presses from being registered where only one occured.
+
+# Introduction-
+
+The game being developed for this project is a simple 'Car Racer'.
+
+It takes place on a road converging into the screen (the horizon).
+
+Cars will appear from this furthest most point, and 'move backwards' as the player's car - travelling at a greater velocity - gradually approaches them.
+
+The player must move left and right to avoid these cars, and the aim of the game is to successfully pass a target amount of cars without colliding with either the road edges or these cars.
+
+
+# Circuit Schematic-
 <img src="https://i.ibb.co/GR4jYhZ/schematic.jpg" alt="schematic" border="0">
 
 Above is the circuit schematic for the microcontroller, display and peripherals.
@@ -12,16 +32,16 @@ Above is the circuit schematic for the microcontroller, display and peripherals.
 * The SSD1306 display has 4 lines which need to be connected (Vcc and GND being two of them).
 * The I<sup>2</sup>C SDA (serial data) line is connected to the analog pin 4 on the Teensy microcontroller.
 * The I<sup>2</sup>C SCL (serial clock) line is connected to analog pin 5.
-* __Note:__ Both of these lines require a pull-up resistor attached to them (to +Vcc). Data transmission pulls the voltage of the line down to 0V due to the open-drain MOSFET interface of I<sup>2</sup>C (shown below). These are internally connected / included the SSD1306 IC, hence were not pictured on the schematic.
+* __Note:__ Both of these lines require a pull-up resistor attached to them (to +Vcc). Data transmission pulls the voltage of the line down to 0V due to the open-drain MOSFET interface of I<sup>2</sup>C (as per below). These are internally connected / included the SSD1306 IC, hence were not pictured on the schematic.
 
 <img src="http://rheingoldheavy.com/wp-content/uploads/2015/01/I2C_Pull_Up_Example.png"> need ref!
 
 * A potentiometer is connected to analog pin 0 (as an input). The variable resistance provides a voltage between 0 and Vcc (+3.3V) on the input, which will be read and used to control the horizontal position of the car (as a mapped value).
 
-* Two buttons are connected to interrupt capable digital pins (also inputs). These will be the 'start' and 'pause' buttons to progress through the game states. When a button is pressed, a connection to ground is formed and the interrupt service routine will be called on the detected negative voltage edge. These inputs will be configured to have internal pullup resistors connected to them, so that the voltage on the line is not floating (and can return to +Vcc) when the button is not pressed (also not pictured).
+* Two buttons are connected to interrupt capable digital pins (also as inputs). These will be the 'start' and 'pause' buttons to progress through the game states. When a button is pressed, a connection to ground is formed and the detected negative voltage edge on the line will trigger an interrupt service routine to be called (to capture this 'button pressed' event). These inputs will be configured to have internal pullup resistors connected to them, so that the line is not floating (and can return to +Vcc) when the button is not pressed - also not pictured.
 
 
-# STATE MACHINE DESIGN
+# State Machine Design-
 <img src="https://i.ibb.co/5ncZTbp/statemachine.jpg" alt="statemachine" border="0">
 
 This is a Moore state machine design, as the state machine action depends only on the active state.   
@@ -46,47 +66,49 @@ Transitions between states depend on these 'events':
 * `Collision` - set when the player's car collides with the road edges or with any oncoming car in the game.  
 * `Win` - set when the player successfully passes the required number of cars (in this specific instance).  
 
-Note: As the start and pause button 'pressed flag' latches on when the corresponding button is pressed, these need to be reset when transitioning to a state checking for these button presses (to further transition). This prevents improper state transitioning - for example, if the start button was pressed during the game running state, the result (if not reset) would be immediately restarting the game when it was won or lost. The gameover or game won screen would not be visible to the player.
+__Note:__ As the start and pause button 'pressed flag' latches on when the corresponding button is pressed, these need to be reset when transitioning to a state checking for these button presses (to further transition). This prevents improper state transitioning - for example, if the start button was pressed during the game running state, the result (if not reset) would be immediately restarting the game when it was won or lost. The gameover or game won screen would not be visible to the player.
 
-# PHYSICAL CIRCUIT
-<img src="https://i.ibb.co/nPXnSB2/breadboardcircuit.jpg" alt="breadboardcircuit" border="0">
+# Physical Circuit-
+<img src="https://i.ibb.co/FxKTJ7G/breadboardcircuit-annotated.jpg" alt="breadboardcircuit-annotated" border="0">
 
 Above is the breadboard implementation of the circuit.  
 
-The left button is 'pause' and the right button is the 'start' button.
+The left button pauses the game and the right button is the 'start' button (for progressing through the menu screens).
 
 The relevant pins used on the Teensy microcontroller are annotated as above.
 
-# CODE IMPLEMENTATION
+# Code Implementation-
 
 * EXPLAIN RUNGAME
 * EXPLAIN STATEMACHINE
 
-# PROJECT VIDEO
+# Project Video-
 <a href="http://www.youtube.com/watch?feature=player_embedded&v=MCOlxTB5z3w
 " target="_blank"><img src="http://img.youtube.com/vi/MCOlxTB5z3w/0.jpg" 
 alt="IMAGE ALT TEXT HERE" width="240" height="180" border="10" /></a>
 
-Above is a supplementary video showing the game running and explaining the source code.
+Above is a supplementary video showing the game running and an explanation of the source code.
 
-# VERIFICATION
+# Verification-
 <img src="https://i.ibb.co/vhTfM8h/states.jpg" alt="states" border="0">
 
 The above image shows all possible states of the game can be reached. Transitions between the states were as expected when using the start/pause push buttons, as according to the state transition diagram.
 
-# DISCUSSION
+# Discussion-
 
 * Control of the player's car is quite rudimentary. The player, via turning the potentiometer, controls the final position of the car. An extension for the game would be having the potentiometer represent 'turn left' and 'turn right' (from the centre point), as opposed to directly mapping to discrete positions. The degree of the turn would correlate to the acceleration in that direction. This would add complexity because the player would then need to gauge the degree of turning required in order to follow the bend of the road or avoid obstacles (and yet, not have an unrecoverable amount of momentum from 'over-turning').
-* An XY axis joystick could be utilised instead of the potentiometer to control the player car's movement. An advantage the joystick has over the potentiometer is that it physically resets to a centred neutral position when not in use (via a spring mechanism). This would eliminate the need for the 'loading screen' state. The degree of the (horizontal) turn could either map to a continuous acceleration scale or be separated into discrete threshold breakpoints where the acceleration amount increases. 
-* Movement in the Y axis could correlate either to a limited vertical degree of freedom (can move up and down the screen), or alternatively, correlate to the player car's speed. Accelerating and braking in this way would make the elements on the screen appear to travel faster or slower accordingly. This could be conveyed on the screen by a 'km/h' meter or by increasing the rate at which a distance meter increases/decreases.
-* The current win condition of passing a certain amount of cars is binary in that the player either wins or loses. There is no 'degree of winning'. The objective of the game would preferably be either: travel the furthest distance within a set time, or travel a target distance in the fastest time. Both of the win conditions naturally lead to having 'high-scores'. These could be saved to the microcontroller's non-volatile memory and could be displayed in another potential game state.
+* An [XY axis joystick](https://www.gearbest.com/development-boards/pp_76239.html) could be utilised instead of the potentiometer to control the player car's movement. An advantage the joystick has over the potentiometer is that it physically resets to a centred neutral position when not in use (via a spring mechanism). This would eliminate the need for the 'loading screen' state. The degree of the (horizontal) turn could either map to a continuous acceleration scale or be separated into discrete threshold breakpoints where the acceleration amount increases. 
+* Movement in the Y axis could correlate either to a limited vertical degree of freedom (the car can move 'down the road' a certain amount), or alternatively, correlate to the action of accelerating and braking. Changing the velocity of the car would affect the rate at which elements on the screen appear to travel towards the player. This could be conveyed on the screen by a 'km/h' meter or by increasing the rate at which a distance meter increases/decreases.
+* The current win condition of passing a certain amount of cars is binary in that the player either wins or loses. There is no 'degree of winning'. The objective of the game would preferably be either: travel the furthest distance within a set time, or travel a target distance in the fastest time. Both of the win conditions promote continued playing of the game, to improve one's own score, and naturally lead to having 'high-scores'. These could be saved to the microcontroller's non-volatile memory and could be displayed in another potential game state.
+* Supplementary to high-scores would be 'phantom racing'. That is, the game saving all actions the player makes, and then - if that game resulted in a high-score -  being able to race against a car that follows that exact pattern.
+* Initially, it was intended for the player to travel a set race track. This would involve the player having to turn left and right according to bends in the road that the player has to sequentially overcome. This was not implemented due to difficult in realising the road graphics with the chosen game perspective. Implementation of car turning would help realise this, where, turning the player's car would result in shifting and rotating the curved road edges to capture the new field of view and change in relative distances between the (now rotated) car and the road edges.
+* More states could be added to the state machine to add to the game's complexity. For example, having a 'start menu' which leads to multiple, selectable options (one of which being 'start a new game'). The in game engine could further utilise more than one state - for example having 'accelerating', 'braking' and 'maintaining speed' states depending on the player's input. Or, 'travelling normally' and 'sustaining damage' states, where there is a threshold of collision damage allowed before the game is over, rather than an instant-lose condition. 
+* Additionally, animations (specifically a start menu and a game introductory sequence) could be captured in their own states. My idea for the 'game running' state was that it would start with a '3', '2', '1' countdown sequence and with the player's car passing over a chequered flag on the road surface.
 
-* Road bends
-* Multiple cars on screen
-* Phantom racing.
-* Game state machine
-* Introductory animations
-* Start menu. highscores
+Most of the difficulty within this project was discovering and resolving edge cases in which the game states would not transition as expected. In addition to the game instantly restarting if the 
+
+
+
 
 # IMAGES AND REFERENCES
 <img src="https://i.ibb.co/V2H6Txn/lcdassistant.jpg" alt="lcdassistant" border="0"> 
