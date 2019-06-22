@@ -79,8 +79,198 @@ The relevant pins used on the Teensy microcontroller are annotated as above.
 
 # Code Implementation-
 
-* EXPLAIN RUNGAME
-* EXPLAIN STATEMACHINE
+The game engine is called in the 'running' state every time the main loop is executed, until the game returns either 'collision' or 'win' - at which point a transition to the relevant end screen state occurs.
+
+The game engine functions as follows:
+* If the game has started, reset game variables to their initialized (typically zero) value.
+```javascript
+  //reset game variables for re-start of game
+  if (gameTime_ms == 0){
+    car_prox = 0; lastCar_ms = 0; launchCar = false; lastCarMove_ms = 0;
+    car_count = 0; carLaunchDelay_ms = CAR_LAUNCHDELAYMAX_MS; carMoveDelay_ms = CAR_MOVEDELAYMAX_MS;
+    lastMedianChange_ms = 0; medianState = 0;
+  }
+```
+* Read the analog value of the potentiometer. Update the current average potentiometer value, then map this average (between 1 and 1023) to a position between the road's edges. This represents the centre point of the car.
+```javascript
+  //calculate position of user's car
+  uint32_t potValue = analogRead(A0); //read potentiometer value
+  potAvg = 0.1*potValue + 0.9*potOld; //implement rolling average
+  potOld = potAvg;
+  uint32_t posValue = map(potAvg,1,1023,ROAD_L_EDGE, ROAD_R_EDGE); //map to car centre position
+```
+* Draw the road lines. The lines of the median strip cyclically toggles between 4 different intermediary states every second.
+```javascript
+  drawRoad(medianState);
+  
+  //determine if median strip needs to be alternated (every 250ms)
+  if ((gameTime_ms - lastMedianChange_ms) > 250){
+    lastMedianChange_ms = gameTime_ms;
+    if(medianState==0){medianState=1;}
+    else if(medianState==1){medianState=2;}
+    else if(medianState==2){medianState=3;}
+    else{medianState=0;}
+  }
+```
+* Draw the player's car. The top left corner for the car bit map will be the (car centre - width/2, fixed y position - height/2).
+```javascript
+  drawCar(posValue);
+```
+* launch car
+```javascript
+  //launch a car depending if carLaunchDelay_ms threshold reached
+  //when carLaunchDelay_ms < 'time to move across screen' -> immediately launches once the previous car is 'done'
+  if ((gameTime_ms - lastCar_ms) > carLaunchDelay_ms){
+    lastCar_ms = gameTime_ms;
+    launchCar = true;
+  }
+```
+* draw car app
+```javascript
+  //draw the approaching cars, moving downwards depending on carMoveDelay_ms time
+  if (launchCar){
+      carApproaching(car_prox,nextCarSide); //car approaching of distance away, and position designator
+      if (millis() - lastCarMove_ms > carMoveDelay_ms){ //carMoveDelay determines speed of car approach 50 -> 0.
+        lastCarMove_ms = millis();
+        car_prox = car_prox + 1; //car proximity 0 (top of road) to road height (bottom of screen)
+      } 
+      //when car reaches end of road...    
+      if(car_prox > ROAD_H){
+        car_prox = 0; //reset car distance variable
+        launchCar = false; //car no longer on road
+        car_count++; //increment cars passed
+        nextCarSide = getRandomSide(); //for next car
+
+        //win if count > threshold. 
+        //alternatively, game time could correspond to distance travelled.
+        if (car_count == NUMCARS){ return win;}
+
+        //decrease car delays evey delayStep # cars
+        if ((car_count > 0) and (car_count % DELAYSTEP) == 0){
+          carLaunchDelay_ms = max(carLaunchDelay_ms - CARLAUNCH_DECR,0);
+          carMoveDelay_ms = max(carMoveDelay_ms - CARMOVE_DECR,0);
+        }
+      }
+    }
+```
+* check for collisions
+```javascript
+  //check for collisions with road & approaching cars (allowing for "clipping" if passed)
+  if (collisionDetectionRoad(posValue)){return collision;}
+  if((car_prox > ROAD_H-10) and (car_prox < ROAD_H-5) and (collisionDetectionCar(posValue,nextCarSide))){
+    return collision;
+  }
+```
+* update game stats
+```javascript
+  //display game progress text
+  displayCarsRemaining(NUMCARS, car_count);
+  display.display(); //write buffer contents to screen
+  gameTime_ms = millis() - gameStartTime_ms; //update game timer
+  return none; //'none' return = game continues
+```
+
+```javascript
+void loop() {
+  //'time when this screen occured' variables
+  static uint32_t startscreentime_ms = 0;  static uint32_t gameovertime_ms = 0;  static uint32_t endscreentime_ms = 0;
+  static bool startscreenstate = 0;  static bool endscreenstate = 0;
+  switch (current_state){
+
+    case S_Start:
+      //could add: startup animation
+      //action: start screen alternates displaying "press start" text, every 1s
+      displayStartScreen(startscreenstate);
+      if ((millis() - startscreentime_ms) > 1000){
+        startscreentime_ms = millis();
+        startscreenstate = !startscreenstate;
+      }
+      //transition checks - 'start' proceeds to next screen
+      if (start_pressed){
+        current_state = S_Load;
+        start_pressed = 0; //reset on transition - as next screen checks for this
+      }
+      break;
+
+    case S_Load:
+      //load screen to calibrate steering wheel (potentiometer)
+      //displayLoadScreen() returns false if would result in crash (with road edge) on game start
+      //proceed if 'start' and no collision would occur
+      canLoad = displayLoadScreen();
+      if (start_pressed and canLoad){
+        current_state = S_Running;
+        gameStartTime_ms = millis(); //time when start button was pressed
+        gameTime_ms = 0; //reset game time
+        start_pressed = 0;
+        pause_pressed = 0; //in case it was latched (which resulted in pausing the load screen)
+      } else{
+        start_pressed = 0;
+      }
+      break;
+
+    case S_Running:
+      //could have "startofGame()" = countdown + driving past chequered start line
+      //run game until win or gameover
+      if (pause_pressed){
+        current_state = S_Paused; //pauses game
+        pause_pressed = 0;
+      }else{ //moves out of 'game running' state in collision / win events
+          gameReturn g = runGame();
+          if (g == collision){
+            current_state = S_Gameover;
+            start_pressed = 0;
+            gameovertime_ms = millis();
+          }
+          else if(g == win){
+            current_state = S_Winning;
+            start_pressed = 0;
+            }
+      }
+      break;
+
+    case S_Paused:
+      //display "pause" text, keeping current frame on screen
+      displayPause();
+      if (pause_pressed){
+        current_state = S_Running;
+        pause_pressed = 0;
+      }
+      break;
+
+    case S_Winning:
+      //alternating win screen
+      displayWOO();
+      if(start_pressed){
+        display.clearDisplay();
+        current_state = S_Start;
+        start_pressed = 0;
+        startscreenstate = 0; endscreenstate = 0; //for screen display consistency
+        snowflakeinit = 0; //^
+      }
+      break;
+
+    case S_Gameover:
+      //display "boom" text if crash
+      //alternating gameover screen
+      if ((millis() - gameovertime_ms) < 1000){
+        displayBOOM();
+      }else{
+        displaygameover(endscreenstate);
+      }
+      if ((millis() - endscreentime_ms) > 1000){
+        endscreentime_ms = millis();
+        endscreenstate = !endscreenstate;
+      }
+      if(start_pressed){
+        display.clearDisplay();
+        current_state = S_Start;
+        start_pressed = 0;
+        startscreenstate = 0; endscreenstate = 0;
+      }
+      break;
+  }
+}
+```
 
 # Project Video-
 <a href="http://www.youtube.com/watch?feature=player_embedded&v=MCOlxTB5z3w
@@ -96,17 +286,19 @@ The above image shows all possible states of the game can be reached. Transition
 
 # Discussion-
 
-* Control of the player's car is quite rudimentary. The player, via turning the potentiometer, controls the final position of the car. An extension for the game would be having the potentiometer represent 'turn left' and 'turn right' (from the centre point), as opposed to directly mapping to discrete positions. The degree of the turn would correlate to the acceleration in that direction. This would add complexity because the player would then need to gauge the degree of turning required in order to follow the bend of the road or avoid obstacles (and yet, not have an unrecoverable amount of momentum from 'over-turning').
+* Control of the player's car is quite rudimentary. The player, via turning the potentiometer, controls the final position of the car. An extension for the game would be having the potentiometer represent 'turn left' and 'turn right' (from the centre potentiometer point), as opposed to directly mapping to discrete positions. The degree of the turn would correlate to the acceleration in that direction. This would add complexity because the player would then need to gauge the degree of turning required in order to follow the bend of the road or avoid obstacles (and yet, not have an unrecoverable amount of momentum from 'over-turning').
 * An [XY axis joystick](https://www.gearbest.com/development-boards/pp_76239.html) could be utilised instead of the potentiometer to control the player car's movement. An advantage the joystick has over the potentiometer is that it physically resets to a centred neutral position when not in use (via a spring mechanism). This would eliminate the need for the 'loading screen' state. The degree of the (horizontal) turn could either map to a continuous acceleration scale or be separated into discrete threshold breakpoints where the acceleration amount increases. 
 * Movement in the Y axis could correlate either to a limited vertical degree of freedom (the car can move 'down the road' a certain amount), or alternatively, correlate to the action of accelerating and braking. Changing the velocity of the car would affect the rate at which elements on the screen appear to travel towards the player. This could be conveyed on the screen by a 'km/h' meter or by increasing the rate at which a distance meter increases/decreases.
-* The current win condition of passing a certain amount of cars is binary in that the player either wins or loses. There is no 'degree of winning'. The objective of the game would preferably be either: travel the furthest distance within a set time, or travel a target distance in the fastest time. Both of the win conditions promote continued playing of the game, to improve one's own score, and naturally lead to having 'high-scores'. These could be saved to the microcontroller's non-volatile memory and could be displayed in another potential game state.
-* Supplementary to high-scores would be 'phantom racing'. That is, the game saving all actions the player makes, and then - if that game resulted in a high-score -  being able to race against a car that follows that exact pattern.
-* Initially, it was intended for the player to travel a set race track. This would involve the player having to turn left and right according to bends in the road that the player has to sequentially overcome. This was not implemented due to difficult in realising the road graphics with the chosen game perspective. Implementation of car turning would help realise this, where, turning the player's car would result in shifting and rotating the curved road edges to capture the new field of view and change in relative distances between the (now rotated) car and the road edges.
-* More states could be added to the state machine to add to the game's complexity. For example, having a 'start menu' which leads to multiple, selectable options (one of which being 'start a new game'). The in game engine could further utilise more than one state - for example having 'accelerating', 'braking' and 'maintaining speed' states depending on the player's input. Or, 'travelling normally' and 'sustaining damage' states, where there is a threshold of collision damage allowed before the game is over, rather than an instant-lose condition. 
+* The current win condition of passing a certain amount of cars is binary in that the player either wins or loses. There is no 'degree of winning'. The objective of the game would preferably be either: travel the furthest distance within a set time, or travel a target distance in the fastest time. Both of the win conditions promote continued playing for improvement, provided there is sufficient difficulty, and naturally lead to having 'high-scores'. These could be saved to the microcontroller's non-volatile memory.
+* Supplementary to high-scores would be 'phantom racing'. That is, the game saving all actions the player makes, and then - if that game resulted in a high-score -  being able to race against a car that follows that exact movement pattern.
+* Initially, it was intended for the player to travel a set race track. This would involve the player having to turn left and right according to bends in the road that the player has to sequentially overcome. This was not implemented due to difficult in realising the road graphics with the chosen game perspective. Implementation of car turning would help realise this, where, turning the player's car would result in shifting and rotating the curved edges of the road to capture the new field of view and change in relative distances between the (now rotated) car and the road's edges.
+* Alternatively, a branching path for the game would have the player race against opponents around a race track with a top down view point. Here, turning would be relative to the player car's forward facing direction.
+* More states could be added to the state machine to add to the game's complexity. For example, having a 'start menu' which leads to multiple, selectable options ('start game', 'options', 'high-scores'). The in game engine could further utilise more than one state - for example having 'accelerating', 'braking' and 'maintaining speed' states depending on the player's input. Or, 'travelling normally' and 'sustaining damage' states, where there is a threshold of collision damage allowed before the game is over, rather than an instant-lose condition. 
 * Additionally, animations (specifically a start menu and a game introductory sequence) could be captured in their own states. My idea for the 'game running' state was that it would start with a '3', '2', '1' countdown sequence and with the player's car passing over a chequered flag on the road surface.
+* The game is finally limited in that only one car (or set of cars) can appear on the screen at any one time. Having multiple cars on the screen would emphasise the requirement of 'weaving' to be able to succeed at the game. For this, the game engine needs to be adjusted slightly. Each car would need its own position values, with the game engine then drawing all cars that are currently visible on the screen.
 
-Most of the difficulty within this project was discovering and resolving edge cases in which the game states would not transition as expected. In addition to the game instantly restarting if the 
 
+Most of the difficulty within this project was discovering and resolving edge cases in which the game states would not transition as expected. The game instantly restarting if the start button had been pressed while the game was running was one example. Another was pressing the pause button during the load screen state would end up pausing the load screen upon transition to the game running state. Both cases were resolved by making sure the 'pressed' flags were reset before transitioning to a state that specifically checked for them. Though an important learning point was "just because I don't expect (the button) to be pressed, doesn't mean it won't be".  
 
 
 
