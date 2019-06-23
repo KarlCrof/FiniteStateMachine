@@ -3,8 +3,6 @@
 Project by Karl Crofskey, 2183664.  
 For MG7013 Embedded Systems.  
 
-Note: _italics_ not showing up correctly - omitted.
-
 # Project Requirements-
 
 The purpose of this project is create a finite state machine in the form of a simple game. Here the specific game screens (minimum: a start screen, the actual game, a pause screen and an end screen) represent the states of the state machine, and transitions occur when button presses are detected or internal conditions are met.
@@ -37,7 +35,8 @@ Above is the circuit schematic for the microcontroller, display and peripherals.
 * __Note:__ Both of these lines require a pull-up resistor attached to them (to +Vcc). Data transmission pulls the voltage of the line down to 0V due to the open-drain MOSFET interface of I<sup>2</sup>C (as per below). These are internally connected / included in the SSD1306 IC, hence were not pictured on the schematic.
 
 <img src="http://rheingoldheavy.com/wp-content/uploads/2015/01/I2C_Pull_Up_Example.png">
-Hienzsch, D. (2015, January 16). I2C Pull Up Resistors. Retrieved from https://rheingoldheavy.com/i2c-pull-resistors/
+
+Hienzsch, D. (2015, January 16). _I2C Pull Up Resistors._ Retrieved from https://rheingoldheavy.com/i2c-pull-resistors/
 
 * A potentiometer is connected to analog pin 0 (as an input). The variable resistance provides a voltage between 0 and Vcc (+3.3V) on the input, which will be read and used to control the horizontal position of the car (as a mapped value).
 
@@ -333,20 +332,24 @@ Most of the difficulty within this project was discovering and resolving edge ca
 
 # IMAGES AND REFERENCES
 <img src="https://i.ibb.co/V2H6Txn/lcdassistant.jpg" alt="lcdassistant" border="0"> 
-Kwiecień, R. LCD Assistant. Retrieved from http://en.radzio.dxp.pl/bitmap_converter/
+
+Kwiecień, R. _LCD Assistant_. Retrieved from http://en.radzio.dxp.pl/bitmap_converter/
 
 [LCD Assistant](http://en.radzio.dxp.pl/bitmap_converter/) was used to convert monochrome bitmaps to an array of bytes, corresponding to bits (each pixel) that needed to be turned on in order to reproduce the image on the display.  
 
 Below are the images used:  
 
 <img src="https://i.ibb.co/YXXHpGh/mazda-323f-1993-2.jpg" alt="mazda-323f-1993-2" border="0"><img src="https://i.ibb.co/k1RwF41/mazda-323f-1993-tiny.jpg" alt="mazda-323f-1993-tiny" border="0">  
-outlines. (2006-2019). 1998 Mazda 323F Lantis F Hatchback blueprints free. Retrieved from https://getoutlines.com/blueprints/3143/1998-mazda-323f-lantis-f-hatchback-blueprints
+
+outlines. (2006-2019). _1998 Mazda 323F Lantis F Hatchback blueprints free._ Retrieved from https://getoutlines.com/blueprints/3143/1998-mazda-323f-lantis-f-hatchback-blueprints
 
 <img src="https://i.ibb.co/chX98p3/render-97.png" alt="render-97" border="0"><img src="https://i.ibb.co/y45htKp/dxracer.png" alt="dxracer" border="0"><img src="https://i.ibb.co/bv4p8rv/dxracer-RIP.png" alt="dxracer-RIP" border="0">  
-Weeeeeee. (2007, May 15). Porche 911 Turbo. Retrieved from https://gamebanana.com/sprays/21984
+
+Weeeeeee. (2007, May 15). _Porche 911 Turbo._ Retrieved from https://gamebanana.com/sprays/21984
 
 <img src="https://i.ibb.co/7nwqyK3/tropy-award.jpg" alt="tropy-award" border="0"><img src="https://i.ibb.co/BKYy9FG/tropy-award-pixel.jpg" alt="tropy-award-pixel" border="0">
-bornzilla. (2016, September 20). trophy-award.jpg. Retrieved from https://bornzilla.eventsmart.com/events/meet-greet-soulzepi/tropy-award/ 
+
+bornzilla. (2016, September 20). _trophy-award.jpg._ Retrieved from https://bornzilla.eventsmart.com/events/meet-greet-soulzepi/tropy-award/ 
 
 
 
@@ -358,7 +361,7 @@ This was for the 128x64 pixel, I2C protocol specific display type.
 
 A modified version of the 'snowflake example' (testanimate) within this sample program was used as part of the game's victory screen. 
 
-Fried, L., Ladyada. (2018, November 14). Adafruit_SSD1306. Retrieved from https://github.com/adafruit/Adafruit_SSD1306/blob/master/examples/ssd1306_128x64_i2c/ssd1306_128x64_i2c.ino 
+Fried, L., Ladyada. (2018, November 14). _Adafruit_SSD1306._ Retrieved from https://github.com/adafruit/Adafruit_SSD1306/blob/master/examples/ssd1306_128x64_i2c/ssd1306_128x64_i2c.ino 
 
 __Source Code__
  
