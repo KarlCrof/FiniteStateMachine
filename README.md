@@ -19,7 +19,7 @@ The game being developed for this project is a simple 'Car Racer'.
 
 It takes place on a road converging into the screen (the horizon).
 
-Cars will appear from this furthest most point, and 'move backwards' as the player's car - travelling at a greater velocity - gradually approaches them.
+Cars will appear from this furthest most point, and move 'backwards' as the player's car - travelling at a greater velocity - gradually approaches them.
 
 The player must move left and right to avoid these cars, and the aim of the game is to successfully pass a target amount of cars without colliding with either the road edges or these cars.
 
@@ -32,9 +32,10 @@ Above is the circuit schematic for the microcontroller, display and peripherals.
 * The SSD1306 display has 4 lines which need to be connected (Vcc and GND being two of them).
 * The I<sup>2</sup>C SDA (serial data) line is connected to the analog pin 4 on the Teensy microcontroller.
 * The I<sup>2</sup>C SCL (serial clock) line is connected to analog pin 5.
-* __Note:__ Both of these lines require a pull-up resistor attached to them (to +Vcc). Data transmission pulls the voltage of the line down to 0V due to the open-drain MOSFET interface of I<sup>2</sup>C (as per below). These are internally connected / included the SSD1306 IC, hence were not pictured on the schematic.
+* __Note:__ Both of these lines require a pull-up resistor attached to them (to +Vcc). Data transmission pulls the voltage of the line down to 0V due to the open-drain MOSFET interface of I<sup>2</sup>C (as per below). These are internally connected / included in the SSD1306 IC, hence were not pictured on the schematic.
 
-<img src="http://rheingoldheavy.com/wp-content/uploads/2015/01/I2C_Pull_Up_Example.png"> need ref!
+<img src="http://rheingoldheavy.com/wp-content/uploads/2015/01/I2C_Pull_Up_Example.png">
+Hienzsch, D. (2015, January 16). _I2C Pull Up Resistors_. Retrieved from https://rheingoldheavy.com/i2c-pull-resistors/
 
 * A potentiometer is connected to analog pin 0 (as an input). The variable resistance provides a voltage between 0 and Vcc (+3.3V) on the input, which will be read and used to control the horizontal position of the car (as a mapped value).
 
@@ -48,7 +49,7 @@ This is a Moore state machine design, as the state machine action depends only o
 Typically, this is just displaying the current state's screen / animation.  
 * The __START__ and __LOAD__ states are progressed by pressing the start button.  
 * The __RUNNING__ state toggles with the __PAUSED__ state by pressing the pause button.  
-* The game engine runs in one state (see above right), and the pause state is a "pause" text overlay over the current game frame / loop. 
+* The game engine runs in one state (see above right), and the pause state is a "pause" text overlay over the current game frame. 
 * The __RUNNING__ state transitions to either the __SUCCESS__ or __GAMEOVER__ state, depending on the outcome of the game.
 * Pressing start in either of these states transitions back to the __START__ state.  
 
@@ -61,8 +62,8 @@ The corresponding state actions are as follows:
 * `displayLoseScreen()` - consolidate the player with a defeat screen.  
 
 Transitions between states depend on these 'events':
-* `Start_Pressed` - set when the 'start' button press triggers an external interrupt (negative edge on the line detected), and in the interrupt service routine called.  
-* `Pause_Pressed` - similarly as above.  
+* `Start_Pressed` - set in the start button interrupt service routine.
+* `Pause_Pressed` - similarly for the pause button.  
 * `Collision` - set when the player's car collides with the road edges or with any oncoming car in the game.  
 * `Win` - set when the player successfully passes the required number of cars (in this specific instance).  
 
@@ -78,8 +79,8 @@ The left button pauses the game and the right button is the 'start' button (for 
 The relevant pins used on the Teensy microcontroller are annotated as above.
 
 # Code Implementation-
-
-The game engine is called in the 'running' state every time the main loop is executed, until the game returns either 'collision' or 'win' - at which point a transition to the relevant end screen state occurs.
+## Game Engine
+The game engine, runGame(), runs once per state machine cycle when the state machine is in the 'running' state. This is, until the game returns either 'collision' or 'win' - at which point a transition to the relevant end screen state occurs.
 
 The game engine functions as follows:
 * If the game has started, reset game variables to their initialized (typically zero) value.
@@ -99,7 +100,7 @@ The game engine functions as follows:
   potOld = potAvg;
   uint32_t posValue = map(potAvg,1,1023,ROAD_L_EDGE, ROAD_R_EDGE); //map to car centre position
 ```
-* Draw the road lines. The lines of the median strip cyclically toggles between 4 different intermediary states every second.
+* Draw the road lines. The lines of the median strip cyclically toggle between 4 intermediary states every second.
 ```javascript
   drawRoad(medianState);
   
@@ -112,11 +113,11 @@ The game engine functions as follows:
     else{medianState=0;}
   }
 ```
-* Draw the player's car. The top left corner for the car bit map will be the (car centre - width/2, fixed y position - height/2).
+* Draw the player's car. The top left corner for the car bit map will be the (x,y) point: (car centre - car width/2, fixed y position - car height/2).
 ```javascript
   drawCar(posValue);
 ```
-* launch car
+* Set the 'launch car' flag (and update the variable tracking this time) if the period between oncoming cars has passed.
 ```javascript
   //launch a car depending if carLaunchDelay_ms threshold reached
   //when carLaunchDelay_ms < 'time to move across screen' -> immediately launches once the previous car is 'done'
@@ -125,7 +126,10 @@ The game engine functions as follows:
     launchCar = true;
   }
 ```
-* draw car app
+* Draw the approaching car(s). 'Car proximity' is incremented, depending on the move delay, and results in the y position of the car increasing. 'nextCarSide' is a random side of the road (left, centre, right, left & right, left & centre, right & centre) that the car(s) will travel down - there is a 'switch case' within carApproaching() to draw at the appropriate positions depending on this.
+* When the car reaches the end of the road... reset variables for the next car and increment the 'cars passed' count.
+* The 'cars passed' count is used to compare to the win target - once the threshold has been reached, the game ends and the player wins the game.
+* It further is used to periodically decrement the launch delay and move delay periods (to a minimum of zero). The modulo '%' operator is used - 'every 2 cars' is equivalent to the remainder of the number of cars divided by this decrement step (2) being zero.
 ```javascript
   //draw the approaching cars, moving downwards depending on carMoveDelay_ms time
   if (launchCar){
@@ -153,7 +157,9 @@ The game engine functions as follows:
       }
     }
 ```
-* check for collisions
+* Check for collisions between the player's car and the road edges. If the left or right edge of the player's car crosses the left or right (respectively) edge of the road, that results in a collision. 
+* Further check for collisions between the player's car and any approaching cars in the 'collision zone' (between 5 and 10 pixels above the player's car). There is a 'switch case' within collisionDetectionCar() depending on the sides of the road the car(s) are coming down - but it also involves checking for boundary overlaps.
+* If either collision case occurs, the game ends and the player loses the game.
 ```javascript
   //check for collisions with road & approaching cars (allowing for "clipping" if passed)
   if (collisionDetectionRoad(posValue)){return collision;}
@@ -161,7 +167,9 @@ The game engine functions as follows:
     return collision;
   }
 ```
-* update game stats
+* Update the game timer and the game information being displayed to the player (cars remaining).
+* Display the buffer contents (all of the bitmaps and text drawn) to the screen.
+* Return that no ending condition has been met - the game continues.
 ```javascript
   //display game progress text
   displayCarsRemaining(NUMCARS, car_count);
@@ -170,14 +178,14 @@ The game engine functions as follows:
   return none; //'none' return = game continues
 ```
 
-```javascript
-void loop() {
-  //'time when this screen occured' variables
-  static uint32_t startscreentime_ms = 0;  static uint32_t gameovertime_ms = 0;  static uint32_t endscreentime_ms = 0;
-  static bool startscreenstate = 0;  static bool endscreenstate = 0;
-  switch (current_state){
+## Finite State Machine
+Every program cycle, the state machine calls the corresponding action of the 'current_state' of the game through use of a 'switch case' statement. It further checks for transition conditions that would change this active state, which are reset upon transitioning.
 
-    case S_Start:
+When in the __START__ state:
+* Draw the startup screen. This screen displays the title of the game "DXRacer 5000" and depicts a car (a bitmap the whole size of the screen). The screen toggles displaying "press start" text every second.
+* If the start button has been pressed - transition to the __LOAD__ state.
+```javascript
+      case S_Start:
       //could add: startup animation
       //action: start screen alternates displaying "press start" text, every 1s
       displayStartScreen(startscreenstate);
@@ -191,7 +199,11 @@ void loop() {
         start_pressed = 0; //reset on transition - as next screen checks for this
       }
       break;
-
+```
+When in the __LOAD__ state:
+* Draw the load screen. This screen displays the lines representing the x co-ordinates of the edges of the road and the centre of the player's car (in order to calibrate the position). 
+* If the start button has been pressed, and proceeding to the game would not result in an instant collision - transition to the __RUNNING__ state, resetting game timer variables.
+```javascript
     case S_Load:
       //load screen to calibrate steering wheel (potentiometer)
       //displayLoadScreen() returns false if would result in crash (with road edge) on game start
@@ -207,7 +219,11 @@ void loop() {
         start_pressed = 0;
       }
       break;
-
+```
+When in the __RUNNING__ state:
+* If the pause button has been pressed, transition to the __PAUSED__ state. This is called before the state action so that the display is not cleared - the current game frame remains on the screen when the game is paused.
+* Otherwise, run the game (as per engine above). Check for the game returning 'collision' or 'win' conditions, and respectively transition to the __WINNING__ or __GAMEOVER__ state respectively. If the game returns 'none', the current state remains this __RUNNING__ state. 
+```javascript
     case S_Running:
       //could have "startofGame()" = countdown + driving past chequered start line
       //run game until win or gameover
@@ -227,7 +243,11 @@ void loop() {
             }
       }
       break;
-
+```
+When in the __PAUSED__ state:
+* Display "paused" text over the current game frame, indicating the game has been paused.
+* Transition back to the __RUNNING__ state upon a second press of the pause button.
+```javascript
     case S_Paused:
       //display "pause" text, keeping current frame on screen
       displayPause();
@@ -236,7 +256,11 @@ void loop() {
         pause_pressed = 0;
       }
       break;
-
+```
+When in the __WINNING__ state:
+* Draw the win screen. This screen depicts a trophy and includes falling snowflakes that are initialized upon first entering the state.
+* When the start button is pressed, transition to the __START__ state resetting state variables. This is so the start (and other) screens display consistently when staes are revisited.
+```javascript
     case S_Winning:
       //alternating win screen
       displayWOO();
@@ -244,11 +268,16 @@ void loop() {
         display.clearDisplay();
         current_state = S_Start;
         start_pressed = 0;
-        startscreenstate = 0; endscreenstate = 0; //for screen display consistency
+        startscreenstate = 0; //for screen display consistency
         snowflakeinit = 0; //^
       }
       break;
-
+```
+When in the __GAMEOVER__ state:
+* Display "boom" text over the current game frame (for 1 second from the time of state transition), indicating a crash has occured.
+* Draw the gameover screen. This screen depicts a crashed car and alternates 'steam lines' every second.
+* When the start button is pressed, transition to the __START__ state resetting state variables.
+```javascript
     case S_Gameover:
       //display "boom" text if crash
       //alternating gameover screen
@@ -268,8 +297,6 @@ void loop() {
         startscreenstate = 0; endscreenstate = 0;
       }
       break;
-  }
-}
 ```
 
 # Project Video-
@@ -295,40 +322,41 @@ The above image shows all possible states of the game can be reached. Transition
 * Alternatively, a branching path for the game would have the player race against opponents around a race track with a top down view point. Here, turning would be relative to the player car's forward facing direction.
 * More states could be added to the state machine to add to the game's complexity. For example, having a 'start menu' which leads to multiple, selectable options ('start game', 'options', 'high-scores'). The in game engine could further utilise more than one state - for example having 'accelerating', 'braking' and 'maintaining speed' states depending on the player's input. Or, 'travelling normally' and 'sustaining damage' states, where there is a threshold of collision damage allowed before the game is over, rather than an instant-lose condition. 
 * Additionally, animations (specifically a start menu and a game introductory sequence) could be captured in their own states. My idea for the 'game running' state was that it would start with a '3', '2', '1' countdown sequence and with the player's car passing over a chequered flag on the road surface.
-* The game is finally limited in that only one car (or set of cars) can appear on the screen at any one time. Having multiple cars on the screen would emphasise the requirement of 'weaving' to be able to succeed at the game. For this, the game engine needs to be adjusted slightly. Each car would need its own position values, with the game engine then drawing all cars that are currently visible on the screen.
+* The game is finally limited in that only one car (or set of cars) can appear on the screen at any one time. Having multiple cars on the screen would emphasise the requirement of 'weaving' to be able to succeed at the game. For this, the game engine needs to be adjusted slightly. Each car would need its own position values (either a 2D array, or an object oriented implementation), with the game engine then drawing all cars that are currently visible on the screen.
 
 
-Most of the difficulty within this project was discovering and resolving edge cases in which the game states would not transition as expected. The game instantly restarting if the start button had been pressed while the game was running was one example. Another was pressing the pause button during the load screen state would end up pausing the load screen upon transition to the game running state. Both cases were resolved by making sure the 'pressed' flags were reset before transitioning to a state that specifically checked for them. Though an important learning point was "just because I don't expect (the button) to be pressed, doesn't mean it won't be".  
+Most of the difficulty within this project was discovering and resolving edge cases in which the game states would not transition as expected. The game instantly restarting if the start button had been pressed while the game was running was one example. Another was pressing the pause button during the load screen state would end up pausing the load screen upon transition to the game running state. Both cases were resolved by making sure the 'pressed' flags were reset before transitioning to a state that specifically checked for them. Though an important learning point was "just because I don't expect (the button) to be pressed, doesn't mean it won't be (by the player)".  
 
 
 
 # IMAGES AND REFERENCES
 <img src="https://i.ibb.co/V2H6Txn/lcdassistant.jpg" alt="lcdassistant" border="0"> 
+Kwiecień, R. _LCD Assistant_. Retrieved from http://en.radzio.dxp.pl/bitmap_converter/
 
 [LCD Assistant](http://en.radzio.dxp.pl/bitmap_converter/) was used to convert monochrome bitmaps to an array of bytes, corresponding to bits (each pixel) that needed to be turned on in order to reproduce the image on the display.  
 
 Below are the images used:  
 
 <img src="https://i.ibb.co/YXXHpGh/mazda-323f-1993-2.jpg" alt="mazda-323f-1993-2" border="0"><img src="https://i.ibb.co/k1RwF41/mazda-323f-1993-tiny.jpg" alt="mazda-323f-1993-tiny" border="0">  
-https://getoutlines.com/blueprints/3143/1998-mazda-323f-lantis-f-hatchback-blueprints
+outlines. (2006-2019). _1998 Mazda 323F Lantis F Hatchback blueprints free_. Retrieved from https://getoutlines.com/blueprints/3143/1998-mazda-323f-lantis-f-hatchback-blueprints
 
 <img src="https://i.ibb.co/chX98p3/render-97.png" alt="render-97" border="0"><img src="https://i.ibb.co/y45htKp/dxracer.png" alt="dxracer" border="0"><img src="https://i.ibb.co/bv4p8rv/dxracer-RIP.png" alt="dxracer-RIP" border="0">  
-https://gamebanana.com/sprays/21984
+Weeeeeee. (2007, May 15). _Porche 911 Turbo_. Retrieved from https://gamebanana.com/sprays/21984
 
 <img src="https://i.ibb.co/7nwqyK3/tropy-award.jpg" alt="tropy-award" border="0"><img src="https://i.ibb.co/BKYy9FG/tropy-award-pixel.jpg" alt="tropy-award-pixel" border="0">
-https://bornzilla.eventsmart.com/events/meet-greet-soulzepi/tropy-award/ 
+bornzilla. (2016, September 20). _trophy-award.jpg_. Retrieved from https://bornzilla.eventsmart.com/events/meet-greet-soulzepi/tropy-award/ 
 
 
 
 # APPENDIX 
 
-SSD1306 datasheet--
-
 __SSD1306 Example Code__ 
-This sample code used as reference for drawing to the OLED screen can be found [here]  (https://github.com/adafruit/Adafruit_SSD1306/blob/master/examples/ssd1306_128x64_i2c/ssd1306_128x64_i2c.ino).  
+The sample code used as reference for drawing to the OLED screen can be found [here]  (https://github.com/adafruit/Adafruit_SSD1306/blob/master/examples/ssd1306_128x64_i2c/ssd1306_128x64_i2c.ino).  
 This was for the 128x64 pixel, I2C protocol specific display type.
 
 A modified version of the 'snowflake example' (testanimate) within this sample program was used as part of the game's victory screen. 
+
+Fried, L., Ladyada. (2018, November 14). _Adafruit_SSD1306_. Retrieved from https://github.com/adafruit/Adafruit_SSD1306/blob/master/examples/ssd1306_128x64_i2c/ssd1306_128x64_i2c.ino 
 
 __Source Code__
  
