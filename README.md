@@ -355,8 +355,8 @@ bornzilla. (2016, September 20). _trophy-award.jpg._ Retrieved from https://born
 
 # APPENDIX 
 
-__SSD1306 Example Code__ 
-The sample code used as reference for drawing to the OLED screen can be found [here]  (https://github.com/adafruit/Adafruit_SSD1306/blob/master/examples/ssd1306_128x64_i2c/ssd1306_128x64_i2c.ino).  
+__SSD1306 Example Code__  
+The sample code used as reference for drawing to the OLED screen can be found [here](https://github.com/adafruit/Adafruit_SSD1306/blob/master/examples/ssd1306_128x64_i2c/ssd1306_128x64_i2c.ino).    
 This was for the 128x64 pixel, I2C protocol specific display type.
 
 A modified version of the 'snowflake example' (testanimate) within this sample program was used as part of the game's victory screen. 
